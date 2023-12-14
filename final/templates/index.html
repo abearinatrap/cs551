@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CS 551 Final Project</title>
+  <style>
+    #dcanvas{
+      border: 1px solid #000;
+      margin-left: 50%;
+      margin-right: 50%;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      font-family: 'Arial', sans-serif;
+    }
+
+    #container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    #buttons {
+      display: flex;
+      margin-top: 10px; /* Add some spacing between the buttons and the canvas */
+    }
+
+    button {
+      margin-right: 10px; /* Add some spacing between the buttons */
+    }
+
+    #historyTable {
+      width: 50%;
+      margin-top: 20px; /* Add some spacing between the buttons and the table */
+      border-collapse: collapse;
+    }
+
+    #historyTable th, #historyTable td {
+      border: 1px solid #000;
+      padding: 8px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="container">
+
+    <canvas id="dcanvas" width="28" height="28"></canvas>
+    <div id="buttons">
+      
+      <button onclick="getPixels()">Get Pixels</button>
+      <button onclick="clearCanvas()">Clear Canvas</button>
+    </div>
+
+    <img id="outputImage" width="28" height="28">
+    <table id="historyTable">
+      <thead>
+        <tr>
+          <th>Image</th>
+          <th>Number</th>
+          <th>Confidence</th>
+        </tr>
+      </thead>
+      <tbody id="historyBody">
+        <!-- History entries will be added dynamically here -->
+      </tbody>
+    </table>
+  </div>
+
+
+
+  <script>
+    const canvas = document.getElementById('dcanvas');
+    const ctx = canvas.getContext('2d');
+
+    const outputImage = document.getElementById('outputImage');
+    const historyBody = document.getElementById('historyBody');
+
+    let isDrawing = false;
+    let imageNumber = 0;
+
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+
+    window.addEventListener('load', () => {
+      clearCanvas();
+    });
+
+    function startDrawing(e) {
+      isDrawing = true;
+      draw(e); // To start drawing from the first click
+    }
+
+    function draw(e) {
+      if (!isDrawing) return;
+
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#000000';
+
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+    }
+
+    function stopDrawing() {
+      isDrawing = false;
+      ctx.beginPath();
+    }
+
+    function getPixels() {
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      console.log(imageData.data[0]);
+      console.log(imageData)
+
+      const pixelArray = [];
+
+      for (let i = 0; i < data.length; i += 4) {
+        let pcount = data[i] + data[i + 1] + data[i + 2];
+        imageData.data[i+3] = 255;
+        //console.log(pcount);
+        pcount /= 3;
+        let pixelValue = pcount;
+
+        pixelArray.push(pixelValue);
+      }
+
+
+      //console.log(pixelArray);
+
+      const dataURL = canvas.toDataURL(); 
+      outputImage.src = dataURL;
+      sendImage(dataURL);
+
+      return pixelArray
+    }
+
+    function clearCanvas() {
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function sendImage(dataURL) {
+      const blob = dataURItoBlob(dataURL);
+      const file = new File([blob], 'image.png', { type: 'image/png' });
+      const formData = new FormData();
+      formData.append('file', file);
+      console.log("sending file")
+      // Send the POST request
+      fetch('http://127.0.0.1:5000/predict', {
+        method: 'POST',
+        body: formData,
+      })
+      .then(response => response.json())
+      .then(data => addToPage(dataURL, data))
+      .catch(error => console.error('Error:', error));
+    }
+
+    function addToPage(dataURL, data){
+      console.log(data)
+      addToHistory(dataURL, data["predicted_digit"], data["confidence"])
+    }
+
+    function dataURItoBlob(dataURI) {
+      const byteString = atob(dataURI.split(',')[1]);
+      const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      return new Blob([ab], { type: mimeString });
+    }
+
+    function addToHistory(imageDataURL, result, confidence) {
+      // Create a new row in the history table
+      const newRow = historyBody.insertRow();
+
+      // Add cells for the image and result
+      const imageCell = newRow.insertCell();
+      const resultCell = newRow.insertCell();
+      const confidenceCell = newRow.insertCell();
+
+      // Create an image element for the image
+      const imageElement = document.createElement('img');
+      imageElement.src = imageDataURL;
+      imageElement.width = 28;
+      imageElement.height = 28;
+
+      // Append the image element to the cell
+      imageCell.appendChild(imageElement);
+
+      // Add the result to the result cell
+      resultCell.textContent = result;
+      confidenceCell.textContent = confidence;
+
+      // Increment the image number for the next entry
+      imageNumber++;
+
+      // Optional: You can limit the number of history entries displayed
+      if (historyBody.children.length > 5) {
+        historyBody.removeChild(historyBody.children[0]);
+      }
+    }
+    
+  </script>
+</body>
+</html>

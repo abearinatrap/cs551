@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canvas Drawing</title>
+  <style>
+    #canvas {
+      border: 1px solid #000;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" width="300" height="300"></canvas>
+  <button onclick="getPixels()">Get Pixels</button>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let isDrawing = false;
+
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+
+    function startDrawing(e) {
+      isDrawing = true;
+      draw(e); // To start drawing from the first click
+    }
+
+    function draw(e) {
+      if (!isDrawing) return;
+
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#000';
+
+      ctx.lineTo(e.clientX - canvas.offsetLeft, e.clientY - canvas.offsetTop);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(e.clientX - canvas.offsetLeft, e.clientY - canvas.offsetTop);
+    }
+
+    function stopDrawing() {
+      isDrawing = false;
+      ctx.beginPath();
+    }
+
+    function getPixels() {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+
+        const pixelArray = [];
+
+        for (let i = 0; i < data.length; i += 4) {
+            // Assuming black strokes on a white background
+            const pixelValue = data[i] === 0 ? 1 : 0;
+            pixelArray.push(pixelValue);
+        }
+
+        // Convert the flat array to a 28x28 matrix
+        const matrix = [];
+        for (let i = 0; i < 28; i++) {
+            matrix.push(pixelArray.slice(i * canvas.width, (i + 1) * canvas.width));
+        }
+
+        console.log(matrix);
+        }
+  </script>
+</body>
+</html>
